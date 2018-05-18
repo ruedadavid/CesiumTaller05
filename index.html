@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Use correct character set. -->
+  <meta charset="utf-8">
+  <!-- Tell IE to use the latest, best version. -->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <!-- Make the application on mobile take up the full browser screen and disable user scaling. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+  <title>Taller 05</title>
+  
+  <script type="text/javascript" src="js/Sandcastle-header.js"></script>
+  <script type="text/javascript" src="../../Build/Cesium/Cesium.js"></script>
+  
+  <style>       
+    @import "../../Build/Cesium/Widgets/widgets.css";
+    @import "../Sandcastle/templates/bucket.css";
+  </style>
+</head>
+<body>
+    <div id="cesiumContainer" class="fullSize"></div>   
+    <div id="toolbar"><h1 id="Tit">Mapa Colombia</h1><div id="Areas"></div></div>
+    
+  <script>
+    // Se declara la variable "visor", la cual contiene el globo virtual, cade vez que se requiera
+    // cambiar algún elementos del globo virtual es necesario invocar esta variable
+    var visor = new Cesium.Viewer('cesiumContainer',{
+    //   El visor tiene varias opciones para ser modificadas, las siguientes variables
+    // definen la presencia de algunos botones de navegación y otros en todo el visor 
+        // scene3DOnly.       Esta variable activa/descativa la visualización en plano o en el globo.
+        scene3DOnly: false,
+        // baseLayerPicker.   Esta variable permite cambiar el mapa base entre los elementos disponibles
+        baseLayerPicker: true,
+        //timeline.           Esta variable muestra/esconde la línea de tiempo del visor principal.
+        timeline: false,
+        // animation.         Esta variable apaga el botón de la parte inferior izquierda del visor
+        animation: false,
+        //fullscreenButton.   Esta variable muestra/esconde botón de pantalla completa.
+        fullscreenButton: false//,
+        //terrainProvider:. Esta variable permite cargar Modelo Digital de Elevación.
+        //terrainProvider: Cesium.createWorldTerrain()
+    }); 
+
+
+// Carga de Menús y botones de apoyo
+//Este botón requiere la carga de la librería Sandcastle-header.js, en esta librería se definen:
+// 1. addDefaultToolbarButton
+// 2. addToolbarMenu
+// 3. addDefaultToolbarMenu
+// 4. addDefaultToolbarButton
+// 5. addToolbarButton
+
+Sandcastle.addToggleButton('Luz Día', visor.scene.globe.enableLighting, function(checked) {
+    verCol(-76,4,50000);
+    visor.scene.globe.enableLighting = checked;
+});
+
+Sandcastle.addDefaultToolbarMenu([{
+    text : 'Seleccione dato',
+    onselect : function() {
+    }
+},{
+    text : 'Colombia',
+    onselect : function() {
+        verCol();
+        visor.dataSources.add(Cesium.GeoJsonDataSource.load('js/depto.geojson', {
+            stroke: Cesium.Color.HOTPINK,
+            fill: Cesium.Color.PINK.withAlpha(0.5),
+            strokeWidth: 3
+            
+        }));
+    }
+}, {
+    text : 'CO-Censo05',
+    onselect : function() {       
+        verCol(-90,-4,1000000,60,-40);
+        
+        cargarDatos('js/depto.geojson', "Cens05",50.0);
+    }
+}, {
+    text : 'CO-Area',
+    onselect : function() {
+        verCol(-90,-4,1000000,60,-40);
+        cargarDatos('js/depto.geojson', "HECTARES",50.0);
+    }
+}, {
+    text : 'CO-PIB2015',
+    onselect : function() {
+        verCol(-60,-5,1500000,320,-50);
+        cargarDatos('js/depto.geojson', "PIB_2015",50.0);
+    }
+}], 'Areas');
+
+//Reset the scene when switching demos.
+Sandcastle.reset = function() {
+    visor.dataSources.removeAll();
+    verCol(-90,-4,1000000,60,-40);
+};
+
+
+function verCol(lon, lati, altura, azimut, pendiente) {
+//   Función definida para acelerar el vuelo hasta Colombia, entrega
+// una vista desde las coordenadas ingresadas, posicionandose sobre el punto
+// de ingresado (lon, lati, altura) y mostrandose la vista con azimut 0
+// y pendiente negativa a 75 grados
+// lon = longitud en grados decimales
+// lati = latitud en grados decimales
+// altura = altura en metros
+// azimut = ángulo en grados decimales desde el norte
+// pendiente = ángulo en grados desde el plano de referencia paralelo a 
+//    la superficie terrestre (negativo para mostrar hacia el suelo)
+    if (arguments.length===0){
+        lon = -72;
+        lati = -12;
+        altura = 7500000;
+        azimut = 0.0;
+        pendiente = -75;
+    }
+    else if(arguments.length===1){
+        lati = -12;
+        altura = 7500000;
+        azimut = 0.0;
+        pendiente = -75; 
+    }
+    else if(arguments.length===2){
+        altura = 7500000;
+        azimut = 0.0;
+        pendiente = -75;
+    }
+    else if(arguments.length===3){
+        azimut = 0.0;
+        pendiente = -75;
+    }
+    visor.camera.flyTo({
+    destination : Cesium.Cartesian3.fromDegrees(lon, lati, altura),
+    orientation : {
+        heading : Cesium.Math.toRadians(azimut),
+        pitch : Cesium.Math.toRadians(pendiente),
+        roll : 0.0
+    }
+});
+}
+
+function cargarDatos(nombre_archivo, campo, factor_visual){
+    
+// Esta función se ha creado tomando como punto de partida el tutorial de Sandbox
+// para mostrar un mapa ocn extrusión en 3D. Esta función sólo trabaja con los 
+// nombre_archivo = nombre del archivo geojson a trabajar
+// campo = campo para representar en 3D
+// factor_visul = factor para división de los datos crudos, busca dismunuir tamaño
+//   del atributo cargado
+
+// Semilla para generación de número aleatorios
+    Cesium.Math.setRandomNumberSeed(0);
+
+    var promise = Cesium.GeoJsonDataSource.load(nombre_archivo);
+    promise.then(function(dataSource) {
+        visor.dataSources.add(dataSource);
+
+        // Carga en el vector "entities" los datos presentes en la capa cargada
+        var entities = dataSource.entities.values;
+
+        var colorHash = {};
+        for (var i = 0; i < entities.length; i++) {
+            //For each entity, create a random color based on the state name.
+            //Some states have multiple entities, so we store the color in a
+            //hash so that we use the same color for the entire state.
+            var entity = entities[i];
+            var name = entity.name;
+            var color = colorHash[name];
+            if (!color) {
+                color = Cesium.Color.fromRandom({
+                    alpha : 1.0
+                });
+                colorHash[name] = color;
+            }
+
+            //Asigna el color a utilizar en el material del objeto
+            entity.polygon.material = color;
+            //Elimina los bordes para cada elementos mostrado
+            entity.polygon.outline = false;
+            // Estos condicionales permiten mostrar los campos necesitados
+            // requiere ajuste para que sea universal.
+            if (campo === "HECTARES"){
+                entity.polygon.extrudedHeight = entity.properties.HECTARES / factor_visual;
+            }
+            else if("Cens05"){
+                entity.polygon.extrudedHeight = entity.properties.Cens05 / factor_visual;               
+            }
+            else if("PIB_2015"){
+                entity.polygon.extrudedHeight = entity.properties.PIB_2015 / factor_visual;               
+            }
+        }
+    }).otherwise(function(error){
+        //Presenta los errores mostrados en la aplicación.
+        window.alert(error);
+    });
+}
+
+  </script>
+</body>
+</html>
